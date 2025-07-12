@@ -1,0 +1,5 @@
+Metadata-Version: 2.4
+Name: smart-file-manager
+Version: 1.0.0
+Requires-Dist: watchdog
+Dynamic: requires-dist

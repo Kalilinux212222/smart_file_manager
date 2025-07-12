@@ -1,0 +1,2 @@
+[console_scripts]
+smartfm = file_manager:main
