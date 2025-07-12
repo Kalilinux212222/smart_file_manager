@@ -1,1 +1,1 @@
-file_manager
+smart_file_manager
