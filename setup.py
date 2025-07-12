@@ -9,7 +9,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'smartfm = file_manager:main',
+            'smartfm = smart_file_manager:main',
         ],
     },
 )
