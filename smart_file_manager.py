@@ -1,12 +1,18 @@
 # Import required modules
-import os                         # For file system operations
-import sys                        # For command-line arguments
-import shutil                     # For moving and deleting files
-from datetime import datetime     # For working with dates and file timestamps
+import os
+import sys
+import shutil
+import json
+
+import hashlib
+from datetime import datetime
+
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 import threading
 import time
+from dotenv import load_dotenv
+load_dotenv()
 
 # ------------------ File Object Structure ------------------
 
@@ -23,14 +29,22 @@ class Files:
 
 # Define known file categories and their extensions
 FILE_CATEGORIES = {
-    'Documents': ['.txt', '.pdf', '.docx', '.xlsx', '.csv'],
-    'Audios': ['.mp3', '.wav', '.aac'],
-    'Videos': ['.mp4', '.avi', '.mov', '.mkv'],
-    'Pictures': ['.png', '.jpg', '.jpeg', '.gif', '.bmp'],
-    'Archives': ['.zip', '.rar', '.7z', '.tar'],
-    'Executables': ['.exe', '.msi', '.sh'],
-    'Scripts': ['.py', '.js', '.bat'],
-    'Website_Languages': ['.html', '.css']
+    'Documents': ['.txt', '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.odt', '.ods', '.odp', '.csv', '.md', '.rtf'],
+    'Audios': ['.mp3', '.wav', '.aac', '.flac', '.ogg', '.m4a', '.wma'],
+    'Videos': ['.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv', '.webm', '.mpeg'],
+    'Pictures': ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.webp', '.svg', '.heic'],
+    'Archives': ['.zip', '.rar', '.7z', '.tar', '.gz', '.bz2', '.xz', '.iso', '.cab'],
+    'Executables': ['.exe', '.msi', '.sh', '.bat', '.app', '.apk', '.bin', '.deb', '.rpm'],
+    'Scripts': ['.py', '.js', '.ts', '.bat', '.ps1', '.rb', '.pl', '.sh', '.lua'],
+    'Website_Languages': ['.html', '.htm', '.css', '.js', '.php', '.asp', '.jsp'],
+    'Databases': ['.sql', '.db', '.sqlite', '.accdb', '.mdb'],
+    'Fonts': ['.ttf', '.otf', '.woff', '.woff2'],
+    '3D_Models': ['.obj', '.fbx', '.stl', '.dae', '.3ds', '.blend'],
+    'Designs': ['.psd', '.ai', '.xd', '.fig', '.sketch'],
+    'Code': ['.c', '.cpp', '.java', '.cs', '.go', '.swift', '.rs', '.kt'],
+    'Logs': ['.log'],
+    'Configs': ['.ini', '.cfg', '.conf', '.yaml', '.yml', '.json', '.xml'],
+    'Backups': ['.bak', '.old', '.tmp'],
 }
 
 # ------------------ Utility Functions ------------------
@@ -207,6 +221,39 @@ def delete_if_empty(path):
         full_path = os.path.join(path, d)
         if not os.listdir(full_path):  # Folder is empty
             delete_folder(path, d)
+# ------------------ Logging ----------------
+# ------------------ Advanced Utilities ------------------
+
+def log_file_operation(file_path, operation, log_file='file_logs.json'):
+    log = {
+        'file': file_path,
+        'operation': operation,
+        'timestamp': datetime.now().isoformat()
+    }
+    logs = []
+    if os.path.exists(log_file):
+        with open(log_file, 'r') as f:
+            try:
+                logs = json.load(f)
+            except:
+                logs = []
+    logs.append(log)
+    with open(log_file, 'w') as f:
+        json.dump(logs, f, indent=2)
+
+def preview_files(file_list):
+    for i, file in enumerate(file_list):
+        print(f"[{i+1}] {file}")
+    confirm = input("Proceed with action on these files? (y/n): ")
+    return confirm.lower() == 'y'
+
+
+def get_file_hash(filepath):
+    sha256 = hashlib.sha256()
+    with open(filepath, 'rb') as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            sha256.update(chunk)
+    return sha256.hexdigest()
 
 # ------------------ File Sorting and Moving ------------------
 
@@ -256,10 +303,9 @@ def move_file_alternate_destination(path):
         return False
 
 # ------------------ Main Program Loop ------------------
-
 def main():
     path = sys.argv[1] if len(sys.argv) > 1 else './Desktop'  # Use given path or default to Desktop
-    folder_check(path)  # Make sure the base folder exists
+    folder_check(path)
     backup_files(path)
     start_realtime_backup(path)
 
@@ -272,15 +318,18 @@ def main():
         print('5. Remove Files in Exact Folder by Date')
         print('6. Remove Folder')
         print('7. Delete Empty Folders')
-        print('8. Exit')
+        print('8. Preview Files in Folder')
+        print('9. Generate Hash of File')
+        print('10. Exit')
 
-        choice = input("Choose an option (1-8): ").strip()
+        choice = input("Choose an option (1-10): ").strip()
 
         if choice == '1':
             file_name = input('Enter file name: ')
             extension = '.' + input('Enter file extension (e.g., txt): ').strip().lower()
             events = [Files(file_name, path, extension, '')]
             store_files(events)
+            log_file_operation(os.path.join(path, file_name + extension), "created")
             if move_file_alternate_destination(path):
                 print('Files successfully sorted.')
 
@@ -299,23 +348,66 @@ def main():
             time_str_s = input('Enter start date (YYYY-MM-DD): ')
             time_str_e = input('Enter end date (YYYY-MM-DD): ')
             old_file_clean(path, time_str_s, time_str_e, directory)
+            log_file_operation(directory, "delete_by_date")
 
         elif choice == '6':
             folder = input('Enter folder name to delete: ')
             delete_folder(path, folder)
+            log_file_operation(folder, "folder_deleted")
 
         elif choice == '7':
             delete_if_empty(path)
             print(detect_files(path))
 
         elif choice == '8':
+            directory = input("Enter directory name: ")
+            full_folder_path = os.path.join(path, directory)
+            if os.path.exists(full_folder_path) and os.path.isdir(full_folder_path):
+                files = [
+                    os.path.join(full_folder_path, f)
+                    for f in os.listdir(full_folder_path)
+                    if os.path.isfile(os.path.join(full_folder_path, f))
+                ]
+                if files:
+                    preview_files(files)
+                else:
+                    print("No files found in the directory.")
+            else:
+                print(f"Directory '{directory}' not found in base path.")
+
+
+
+        elif choice == '9':
+
+            folder = input("Enter folder name: ").strip()
+
+            file_name = input("Enter file name: ").strip()
+
+            folder_path = os.path.join(path, folder)
+
+            file_path = os.path.join(folder_path, file_name)
+
+            if os.path.exists(file_path) and os.path.isfile(file_path):
+
+                file_hash = get_file_hash(file_path)
+
+                print("SHA256 Hash:", file_hash)
+
+                # Log the hash operation
+
+                log_file_operation(file_path, f"hash_generated: {file_hash}")
+
+
+            else:
+
+                print(f"File '{file_name}' not found in folder '{folder}'.")
+
+        elif choice == '10':
             print("Exiting program.")
             break
 
         else:
-            print("Invalid option. Please choose between 1-8.")
-
-# ------------------ Entry Point ------------------
+            print("Invalid option. Please choose between 1-10.")
 
 if __name__ == '__main__':
     main()
