@@ -4,12 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="8713fdb7-e320-48f5-9ee1-3e1d8ba0d0fa" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/lib/smart_file_manager.py" beforeDir="false" afterPath="$PROJECT_DIR$/build/lib/smart_file_manager.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/smart_file_manager.py" beforeDir="false" afterPath="$PROJECT_DIR$/smart_file_manager.py" afterDir="false" />
-    </list>
+    <list default="true" id="8713fdb7-e320-48f5-9ee1-3e1d8ba0d0fa" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
