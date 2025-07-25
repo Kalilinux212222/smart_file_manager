@@ -3,16 +3,33 @@ import os
 import sys
 import shutil
 import json
-
+import logging
 import hashlib
 from datetime import datetime
-
+from colorama import Fore, init
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 import threading
 import time
 from dotenv import load_dotenv
 load_dotenv()
+init(autoreset=True)
+# ---------
+# Logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+console = logging.StreamHandler()
+console.setLevel(logging.INFO)
+
+fileHandler = logging.FileHandler('smart_file_manager.log')
+fileHandler.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+console.setFormatter(formatter)
+fileHandler.setFormatter(formatter)
+logger.addHandler(console)
+logger.addHandler(fileHandler)
 
 # ------------------ File Object Structure ------------------
 
@@ -53,12 +70,14 @@ FILE_CATEGORIES = {
 def folder_check(path):
     if not os.path.exists(path):
         os.makedirs(path)
+        logger.info(Fore.GREEN + f'Folder {path} created')
 
 
 # Check if the path exists
 def ensure_exists(path):
     if not os.path.exists(path):
         print(f"The path '{path}' does not exist.")
+        logger.warning(Fore.YELLOW + f'Folder {path} already exists')
         return False
     return True
 
@@ -93,6 +112,7 @@ def start_realtime_backup(path):
                 time.sleep(1)
         except KeyboardInterrupt:
             observer.stop()
+            logger.critical(Fore.RED + 'Real time backup stopped.')
         observer.join()
 
     threading.Thread(target=keep_running, daemon=True).start()
@@ -122,13 +142,15 @@ def backup_files(base_path):
                 folder_check(target_folder)
                 try:
                     shutil.copy2(source_path, target_path)
-
                     files_backed_up += 1
+                    logger.info('Backup file {} copied to {}'.format(source_path, target_path))
                 except Exception as e:
+                    logger.exception('Failed to backup file {} as {}'.format(source_path,e))
                     print(f"Failed to backup {source_path}: {e}")
 
     if files_backed_up == 0:
         print("All files already backed up. No new files found.")
+        logger.info('No new files backed up.')
 
 # ------------------ Core File Management ------------------
 
@@ -138,24 +160,29 @@ def store_files(events):
         full_path = os.path.join(event.path, event.fullname)
         if os.path.exists(full_path):
             print(f'{event.fullname} already exists!')
+            logger.warning(Fore.YELLOW + f'{event.fullname} already exists!')
         else:
             with open(full_path, 'w') as f:
                 pass  # Create an empty file
             print(f'{event.fullname} stored successfully.')
+            logger.info(Fore.GREEN + f'{event.fullname} stored successfully.')
 
 # List all files in directories and standalone files
 def get_file(path):
     dirs = os.listdir(path)
     if not dirs:
         print('No directories found.')
+        logger.warning(Fore.RED + 'No directories found.')
         return
     for d in dirs:
         full_path = os.path.join(path, d)
         if os.path.isdir(full_path):
             for f in os.listdir(full_path):
                 print(f'Found: Filename - {f} in directory - {d}')
+                logger.info(Fore.GREEN + f'Found: Filename - {f} in directory - {d}')
         else:
             print(f'Found: File - {d} (not in a directory)')
+            logger.warning(Fore.YELLOW + 'Not in a directory.')
 
 # List only directories from the path
 def get_folder(path):
@@ -179,8 +206,10 @@ def delete_folder(path, folder_name):
             try:
                 shutil.rmtree(full_path)
                 print(f"Deleted folder and all contents: {d}")
+                logger.info(Fore.GREEN + f"Deleted folder and all contents: {d}")
                 return
             except Exception as e:
+                logger.exception(Fore.RED + 'Failed to delete folder and all contents:')
                 print(f"Failed to delete folder {d}: {e}")
                 return
     print(f"Folder '{folder_name}' not found in {path}")
@@ -190,6 +219,7 @@ def old_file_clean(path, time_str_s, time_str_e, directory):
     try:
         cutoff_start = datetime.strptime(time_str_s, '%Y-%m-%d').timestamp()
         cutoff_end = datetime.strptime(time_str_e, '%Y-%m-%d').timestamp()
+        logger.info(Fore.BLUE + f'Cutoff start: {cutoff_start} and end: {cutoff_end}')
     except ValueError:
         print("Invalid date format. Use YYYY-MM-DD")
         return
@@ -210,7 +240,9 @@ def old_file_clean(path, time_str_s, time_str_e, directory):
                     os.remove(file_path)
                     print(f"Deleted: {file}")
                     files_deleted += 1
+                    logger.info(Fore.GREEN + f'Deleted: {file}. Time Stamped: {mod_time}')
             except Exception as e:
+                logger.exception(Fore.RED + 'Failed to delete file')
                 print(f"Skipped {file}: {e}")
 
     print(f"Total files deleted: {files_deleted}" if files_deleted else "No files deleted.")
@@ -221,39 +253,28 @@ def delete_if_empty(path):
         full_path = os.path.join(path, d)
         if not os.listdir(full_path):  # Folder is empty
             delete_folder(path, d)
-# ------------------ Logging ----------------
 # ------------------ Advanced Utilities ------------------
-
-def log_file_operation(file_path, operation, log_file='file_logs.json'):
-    log = {
-        'file': file_path,
-        'operation': operation,
-        'timestamp': datetime.now().isoformat()
-    }
-    logs = []
-    if os.path.exists(log_file):
-        with open(log_file, 'r') as f:
-            try:
-                logs = json.load(f)
-            except:
-                logs = []
-    logs.append(log)
-    with open(log_file, 'w') as f:
-        json.dump(logs, f, indent=2)
 
 def preview_files(file_list):
     for i, file in enumerate(file_list):
         print(f"[{i+1}] {file}")
+        logger.info('Previewing file {}'.format(file))
     confirm = input("Proceed with action on these files? (y/n): ")
     return confirm.lower() == 'y'
 
 
-def get_file_hash(filepath):
+def hash_file(filepath, chunk_size=4096):
     sha256 = hashlib.sha256()
+
     with open(filepath, 'rb') as f:
-        for chunk in iter(lambda: f.read(4096), b""):
+        while True:
+            chunk = f.read(chunk_size)
+            if not chunk:
+                break
             sha256.update(chunk)
+    logger.info(Fore.CYAN + 'File has been hashed')
     return sha256.hexdigest()
+
 
 # ------------------ File Sorting and Moving ------------------
 
@@ -287,7 +308,9 @@ def move_files(file_list, folder, base_path):
     for file in file_list:
         try:
             shutil.move(file, target_folder)
+            logger.info(Fore.YELLOW + f'Moved {file} to {target_folder}')
         except Exception as e:
+            logger.exception(Fore.RED + 'Failed to move file!')
             print(f"Failed to move {file}: {e}")
 
 # Detect file categories and move them automatically
@@ -297,6 +320,7 @@ def move_file_alternate_destination(path):
         categorized = detect_files(files)
         for category, file_list in categorized.items():
             move_files(file_list, category, path)
+            logger.info(Fore.GREEN + f'Moved {file_list} to {category} successfully!')
         return True
     except Exception as ex:
         print(f"Error moving files: {ex}")
@@ -329,7 +353,7 @@ def main():
             extension = '.' + input('Enter file extension (e.g., txt): ').strip().lower()
             events = [Files(file_name, path, extension, '')]
             store_files(events)
-            log_file_operation(os.path.join(path, file_name + extension), "created")
+
             if move_file_alternate_destination(path):
                 print('Files successfully sorted.')
 
@@ -348,12 +372,12 @@ def main():
             time_str_s = input('Enter start date (YYYY-MM-DD): ')
             time_str_e = input('Enter end date (YYYY-MM-DD): ')
             old_file_clean(path, time_str_s, time_str_e, directory)
-            log_file_operation(directory, "delete_by_date")
+
 
         elif choice == '6':
             folder = input('Enter folder name to delete: ')
             delete_folder(path, folder)
-            log_file_operation(folder, "folder_deleted")
+
 
         elif choice == '7':
             delete_if_empty(path)
@@ -389,13 +413,13 @@ def main():
 
             if os.path.exists(file_path) and os.path.isfile(file_path):
 
-                file_hash = get_file_hash(file_path)
+                file_hash = hash_file(file_path)
 
                 print("SHA256 Hash:", file_hash)
 
                 # Log the hash operation
 
-                log_file_operation(file_path, f"hash_generated: {file_hash}")
+
 
 
             else:
