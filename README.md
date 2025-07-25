@@ -9,7 +9,7 @@ A command-line Python tool for managing and backing up your files.
  cd smart-file-manager
  pip install -r requirements.txt
  pip insatll -e .
- python3 smart_file_manager.py
+ python3 main.py /Desktop/Path
 
 •	✅ Windows (C:\Users\Username\Desktop\pathfolder)
 •	✅ macOS (/Users/username/Desktop/PathFolder)
