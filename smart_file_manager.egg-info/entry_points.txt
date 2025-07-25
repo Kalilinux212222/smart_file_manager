@@ -1,2 +1,2 @@
 [console_scripts]
-smartfm = smart_file_manager:main
+smartfm = main:main

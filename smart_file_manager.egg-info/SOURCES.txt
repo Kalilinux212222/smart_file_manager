@@ -1,6 +1,6 @@
 README.md
 setup.py
-smart_file_manager.py
+main.py
 smart_file_manager.egg-info/PKG-INFO
 smart_file_manager.egg-info/SOURCES.txt
 smart_file_manager.egg-info/dependency_links.txt
